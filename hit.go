@@ -533,7 +533,7 @@ type Stats []struct {
 }
 
 // List all browser statistics for the given time period.
-func (h *Stats) ListBrowsers(ctx context.Context, start, end time.Time, filter string) (int, int, error) {
+func (h *Stats) ListBrowsers(ctx context.Context, start, end time.Time) (int, int, error) {
 	err := zdb.MustGet(ctx).SelectContext(ctx, h, `
 		select browser as name, sum(count) as count from browser_stats
 		where site=$1 and day >= $2 and day <= $3
@@ -600,7 +600,7 @@ const (
 )
 
 // ListSizes lists all device sizes.
-func (h *Stats) ListSizes(ctx context.Context, start, end time.Time, filter string) error {
+func (h *Stats) ListSizes(ctx context.Context, start, end time.Time) (int, error) {
 	// TODO: just store better; all of this is ugly.
 	// select split_part(size, ',', 1) || ',' || split_part(size, ',', 2) as browser,
 	// order by cast(split_part(size, ',', 1) as int) asc
@@ -614,7 +614,7 @@ func (h *Stats) ListSizes(ctx context.Context, start, end time.Time, filter stri
 		group by size
 	`, MustGetSite(ctx).ID, dayStart(start), dayEnd(end))
 	if err != nil {
-		return errors.Wrap(err, "Stats.ListSize")
+		return 0, errors.Wrap(err, "Stats.ListSize")
 	}
 
 	// hh := *h
@@ -640,7 +640,10 @@ func (h *Stats) ListSizes(ctx context.Context, start, end time.Time, filter stri
 	}
 
 	hh := *h
+	var count int
 	for i := range hh {
+		count += hh[i].Count
+
 		x, _ := strconv.ParseInt(strings.Split(hh[i].Name, ", ")[0], 10, 16)
 		// TODO: apply scaling?
 		switch {
@@ -659,7 +662,8 @@ func (h *Stats) ListSizes(ctx context.Context, start, end time.Time, filter stri
 		}
 	}
 	*h = ns
-	return nil
+
+	return count, nil
 }
 
 // ListSize lists all sizes for one grouping.
@@ -726,7 +730,7 @@ func (h *Stats) ListSize(ctx context.Context, name string, start, end time.Time)
 }
 
 // List all location statistics for the given time period.
-func (h *Stats) ListLocations(ctx context.Context, start, end time.Time, filter string) (int, error) {
+func (h *Stats) ListLocations(ctx context.Context, start, end time.Time) (int, error) {
 	err := zdb.MustGet(ctx).SelectContext(ctx, h, `
 		select
 			iso_3166_1.name as name,
